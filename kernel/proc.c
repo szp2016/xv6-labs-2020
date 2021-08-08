@@ -8,6 +8,7 @@
 
 struct cpu cpus[NCPU];
 
+//管理所有的进程
 struct proc proc[NPROC];
 
 struct proc *initproc;
@@ -694,6 +695,7 @@ procdump(void)
     printf("\n");
   }
 }
+//统计当前进程总数
 int
 proc_size()
 {

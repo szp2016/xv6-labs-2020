@@ -21,6 +21,7 @@ extern char trampoline[]; // trampoline.S
 void
 kvminit()
 {
+  //为最高一级page directory分配物理page（注，调用kalloc就是分配物理page）
   kernel_pagetable = (pagetable_t) kalloc();
   memset(kernel_pagetable, 0, PGSIZE);
 
@@ -52,6 +53,7 @@ kvminit()
 void
 kvminithart()
 {
+  //设置了SATP寄存器
   w_satp(MAKE_SATP(kernel_pagetable));
   sfence_vma();
 }

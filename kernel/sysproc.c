@@ -114,9 +114,13 @@ sys_sysinfo(void)
   // 获取用户态传入的sysinfo结构体
   if (argaddr(0, &addr) < 0) 
     return -1;
+  //获取当前进程
   struct proc* p = myproc();
+  //计算剩余内存
   info.freemem = freememory();
+  //计算进程数量
   info.nproc = proc_size();
+ //拷贝info到用户空间
   if (copyout(p->pagetable, addr, (char*)&info, sizeof(info)) < 0)
     return -1;
   return 0;

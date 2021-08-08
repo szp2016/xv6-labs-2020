@@ -14,7 +14,11 @@ sinfo(struct sysinfo *info) {
 
 //
 // use sbrk() to count how many free physical memory pages there are.
-//
+// sbrk(0)返回的是heap的结束地址
+//brk通过传递的addr来重新设置program break，成功则返回0，否则返回-1。而sbrk用来增加heap，
+//增加的大小通过参数increment决定，返回增加大小前的heap的program break，如果increment为0则返回program break。
+//brk和sbrk分配的堆空间类似于缓冲池，每次malloc从缓冲池获得内存，如果缓冲池不够了，
+//再调用brk或sbrk扩充缓冲池，直到达到缓冲池大小的上限，free则将应用程序使用的内存空间归还给缓冲池。
 int
 countfree()
 {
