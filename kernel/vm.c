@@ -440,3 +440,43 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+void
+_vmprint(pagetable_t pagetable, int level){
+  //遍历页表pagetable中的512个页表项
+  for (int i = 0; i < 512; i++)
+  {
+    pte_t pte = pagetable[i];
+    //pte第一个标志位是Valid，位于第一位。如果Valid bit位为1，那么表明这是一条合法的PTE
+    if ((pte & PTE_V))
+    {
+      for (int j = 0; j < level; j++)
+      {
+        if (j == 0)
+        {
+          printf("..");
+        }
+        else{
+          printf("  ..");
+        }
+        
+      }
+      //pte右移10位，去掉标志位，左移12位设置偏移量为0，也就是下一级页表物理地址。
+      uint64 child = PTE2PA(pte);
+      //pte为页表项，页表项的结构是：63-54保留位，53-10物理页号（PPN）,9-0标志位。
+
+      printf("%d: pte %p pa %p\n", i , pte, child);
+      //最后一级页表的页表项会设置读、写、执行的标志位，如果是最后一级页表就不再递归打印
+      if ((pte & (PTE_R|PTE_W|PTE_X)) == 0)
+      _vmprint((pagetable_t)child, level + 1);
+    }
+    
+  }
+  
+}
+void
+vmprint(pagetable_t pagetable){
+  //SATP寄存器中存储的页表物理地址
+  printf("page table %p\n",pagetable);
+  _vmprint(pagetable,1);
+
+}
