@@ -23,6 +23,7 @@ struct {
   struct run *freelist;
 } kmem;
 
+//管理物理内存，建立freelist链表
 void
 kinit()
 {

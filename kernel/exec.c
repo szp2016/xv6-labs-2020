@@ -116,11 +116,14 @@ exec(char *path, char **argv)
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
-//打印页表
+  //打印页表
   if (p->pid == 1)
   {
     vmprint(p->pagetable);
   }
+
+  u2kvmcopy(p->pagetable, p->kpagetable, 0, p->sz);
+
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:

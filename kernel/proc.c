@@ -37,6 +37,7 @@ procinit(void)
       char *pa = kalloc();
       if(pa == 0)
         panic("kalloc");
+        //进程表每项分配一页作为kernel栈
       uint64 va = KSTACK((int) (p - proc));
       kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
       p->kstack = va;
@@ -89,6 +90,7 @@ allocpid() {
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
 // If there are no free procs, or a memory allocation fails, return 0.
+//负责分配、初始化进程
 static struct proc*
 allocproc(void)
 {
@@ -120,6 +122,13 @@ found:
     release(&p->lock);
     return 0;
   }
+  // 分配内核页表
+  p->kpagetable = proc_kvminit();
+  if (p->kpagetable == 0) {
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
@@ -141,6 +150,11 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+
+  //释放独有的内核页表
+  if(p->kpagetable) {
+    proc_freekpagetable(p->kpagetable);
+  }
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
@@ -194,7 +208,22 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
 }
-
+//释放进程独有内核页表，仅释放第一个 entry 对应的次级页表，因为其他entry是共享的全局内核页表。
+void
+proc_freekpagetable(pagetable_t kpagetable) {
+  pte_t pte = kpagetable[0];
+  pagetable_t level1 = (pagetable_t) PTE2PA(pte);
+  for (int i = 0; i < 512; i++) {
+    pte_t pte = level1[i];
+    if (pte & PTE_V) {
+      uint64 level2 = PTE2PA(pte);
+      kfree((void *) level2);
+      level1[i] = 0;
+    }
+  }
+  kfree((void *) level1);
+  kfree((void *) kpagetable);
+}
 // a user program that calls exec("/init")
 // od -t xC initcode
 uchar initcode[] = {
@@ -230,11 +259,15 @@ userinit(void)
 
   p->state = RUNNABLE;
 
+  //
+  u2kvmcopy(p->pagetable, p->kpagetable, 0, p->sz);
+
   release(&p->lock);
 }
 
 // Grow or shrink user memory by n bytes.
 // Return 0 on success, -1 on failure.
+//增减内存。 如果n大于0，用uvmalloc增加。 如果n小于0，用uvmdealloc减小。 
 int
 growproc(int n)
 {
@@ -249,6 +282,10 @@ growproc(int n)
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
+  //拷贝进程页表到内核页表。
+  u2kvmcopy(p->pagetable, p->kpagetable, p->sz, sz);
+
+
   p->sz = sz;
   return 0;
 }
@@ -294,6 +331,9 @@ fork(void)
   pid = np->pid;
 
   np->state = RUNNABLE;
+
+  //拷贝进程页表到进程内核页表
+  u2kvmcopy(np->pagetable, np->kpagetable, 0, np->sz);
 
   release(&np->lock);
 
@@ -473,18 +513,29 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+
+        //切换进程独有的内核页表
+        w_satp(MAKE_SATP(p->kpagetable));
+        //刷新tlb
+        sfence_vma();
+
         swtch(&c->context, &p->context);
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
-
+        //切换回全局内核页表
+        kvminithart();
         found = 1;
       }
       release(&p->lock);
     }
 #if !defined (LAB_FS)
     if(found == 0) {
+
+     //切换回全局内核页表
+      kvminithart();
+
       intr_on();
       asm volatile("wfi");
     }

@@ -53,6 +53,7 @@
 
 // map kernel stacks beneath the trampoline,
 // each surrounded by invalid guard pages.
+//2*PGSIZE乘以2是因为有一页作为Guard page，Guard page不会映射到任何物理内存，PTE中Valid标志位未设置，如果kernel stack耗尽，会导致立即触发page fault
 #define KSTACK(p) (TRAMPOLINE - ((p)+1)* 2*PGSIZE)
 
 // User memory layout.
